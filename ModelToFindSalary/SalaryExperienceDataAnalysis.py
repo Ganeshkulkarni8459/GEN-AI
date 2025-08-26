@@ -12,11 +12,11 @@ data_frame.info()
 
 print(data_frame.describe())
 
-# plt.scatter(data_frame['Experience'], data_frame['Salary'])
-# plt.xlabel('Experience')
-# plt.ylabel('Salary')
-# plt.title('Experience vs Salary')
-# plt.show()
+plt.scatter(data_frame['Experience'], data_frame['Salary'])
+plt.xlabel('Experience')
+plt.ylabel('Salary')
+plt.title('Experience vs Salary')
+plt.show()
 
 correlation = data_frame['Experience'].corr(data_frame['Salary'])
 print(f'Correlation between Experience and Salary: {correlation}')
