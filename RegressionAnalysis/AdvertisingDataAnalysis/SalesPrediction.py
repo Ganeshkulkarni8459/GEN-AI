@@ -22,6 +22,3 @@ print(f'Correlation between TV and Sales: {correlations_tv_sales}')
 
 correlations_radio_sales = data_frame['radio'].corr(data_frame['sales'])
 print(f'Correlation between Radio and Sales: {correlations_radio_sales}')
-
-
-
