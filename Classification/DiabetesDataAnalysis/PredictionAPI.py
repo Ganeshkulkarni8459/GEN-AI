@@ -16,13 +16,6 @@ except FileNotFoundError:
 
 @app.route('/predict', methods=['GET'])
 def predict():
-    """
-    API endpoint to get a prediction from the diabetes model.
-    The GET request should include all features as URL parameters.
-    
-    Example URL:
-    /predict?Pregnancies=4&Glucose=110&BloodPressure=92&SkinThickness=0&Insulin=0&BMI=37.6&DiabetesPedigreeFunction=0.191&Age=30
-    """
     try:
         # Get the input data from the GET request URL parameters
         pregnancies = float(request.args.get('Pregnancies'))
