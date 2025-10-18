@@ -10,4 +10,4 @@ llm = ChatOpenAI(
 prompt = "What is the capital of India?"
 
 response = llm.invoke(prompt)
-print(response,)
+print(response,) 

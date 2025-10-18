@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Multi-Modal Service</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      background: #f7f7f5;
+      color: #2d2d2d;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .main-container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: #ffffff;
+      border-radius: 16px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      overflow: hidden;
+    }
+
+    .header {
+      background: linear-gradient(135deg, #cc9b7a 0%, #d4a882 100%);
+      padding: 32px 40px;
+      color: white;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      font-weight: 500;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      font-size: 14px;
+      opacity: 0.95;
+      font-weight: 400;
+    }
+
+    .chat-container {
+      padding: 32px 40px;
+    }
+
+    .input-section {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: 16px;
+      font-size: 15px;
+      font-family: inherit;
+      border: 2px solid #e5e5e0;
+      border-radius: 12px;
+      resize: vertical;
+      transition: all 0.2s ease;
+      background: #fafaf8;
+    }
+
+    textarea:focus {
+      outline: none;
+      border-color: #cc9b7a;
+      background: #ffffff;
+      box-shadow: 0 0 0 3px rgba(204, 155, 122, 0.1);
+    }
+
+    textarea::placeholder {
+      color: #999;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 12px;
+      margin-top: 16px;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+
+    .btn-primary {
+      background: #cc9b7a;
+      color: white;
+      flex: 1;
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #b88a6a;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(204, 155, 122, 0.3);
+    }
+
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .btn-secondary {
+      background: #f0f0ed;
+      color: #2d2d2d;
+      padding: 12px 20px;
+    }
+
+    .btn-secondary:hover {
+      background: #e5e5e0;
+    }
+
+    .loading-container {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 20px;
+      background: #fafaf8;
+      border-radius: 12px;
+      margin: 20px 0;
+      border: 1px solid #e5e5e0;
+    }
+
+    .loading-container.active {
+      display: flex;
+    }
+
+    .spinner {
+      width: 20px;
+      height: 20px;
+      border: 2px solid #e5e5e0;
+      border-top-color: #cc9b7a;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .loading-text {
+      color: #666;
+      font-size: 14px;
+    }
+
+    .result-container {
+      display: none;
+      margin-top: 24px;
+      animation: fadeIn 0.4s ease;
+    }
+
+    .result-container.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .intent-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: #f0f0ed;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #2d2d2d;
+      margin-bottom: 16px;
+    }
+
+    .intent-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #cc9b7a;
+    }
+
+    .result-content {
+      background: #fafaf8;
+      padding: 24px;
+      border-radius: 12px;
+      border: 1px solid #e5e5e0;
+    }
+
+    .result-text {
+      font-size: 15px;
+      line-height: 1.6;
+      color: #2d2d2d;
+    }
+
+    .result-image {
+      margin-top: 16px;
+    }
+
+    .result-image img {
+      width: 100%;
+      border-radius: 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .result-audio {
+      margin-top: 16px;
+    }
+
+    .result-audio audio {
+      width: 100%;
+      height: 48px;
+    }
+
+    .error-container {
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      padding: 16px 20px;
+      border-radius: 12px;
+      color: #991b1b;
+      font-size: 14px;
+      margin-top: 16px;
+    }
+
+    .success-message {
+      color: #059669;
+      font-size: 14px;
+      margin-bottom: 12px;
+      font-weight: 500;
+    }
+
+    .examples {
+      margin-top: 32px;
+      padding-top: 24px;
+      border-top: 1px solid #e5e5e0;
+    }
+
+    .examples h3 {
+      font-size: 16px;
+      font-weight: 500;
+      margin-bottom: 16px;
+      color: #2d2d2d;
+    }
+
+    .example-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+
+    .example-card {
+      padding: 14px 16px;
+      background: #fafaf8;
+      border: 1px solid #e5e5e0;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      font-size: 14px;
+      color: #666;
+    }
+
+    .example-card:hover {
+      border-color: #cc9b7a;
+      background: #ffffff;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    }
+
+    .example-label {
+      display: block;
+      font-weight: 500;
+      color: #cc9b7a;
+      margin-bottom: 4px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+  </style>
+</head>
+<body>
+  <div class="main-container">
+    <div class="header">
+      <h1>AI Multi-Modal Assistant</h1>
+      <p>Generate text, images, audio, and translations using advanced AI models</p>
+    </div>
+
+    <div class="chat-container">
+      <div class="input-section">
+        <textarea 
+          id="promptInput" 
+          placeholder="Describe what you'd like to create... Try 'Draw a sunset', 'Translate hello to Marathi', or 'Read this aloud'"
+        ></textarea>
+        
+        <div class="button-group">
+          <button class="btn-primary" id="processBtn" onclick="processPrompt()">
+            Generate
+          </button>
+          <button class="btn-secondary" onclick="clearAll()">
+            Clear
+          </button>
+        </div>
+      </div>
+
+      <div class="loading-container" id="loadingContainer">
+        <div class="spinner"></div>
+        <span class="loading-text">Processing your request...</span>
+      </div>
+
+      <div class="result-container" id="resultContainer">
+        <div class="intent-badge" id="intentBadge">
+          <span class="intent-dot"></span>
+          <span id="intentText"></span>
+        </div>
+        <div class="result-content" id="resultContent"></div>
+      </div>
+
+      <div class="examples">
+        <h3>Try these examples</h3>
+        <div class="example-grid">
+          <div class="example-card" onclick="fillExample('Generate a story about a robot learning to paint')">
+            <span class="example-label">Text</span>
+            Story about a robot
+          </div>
+          <div class="example-card" onclick="fillExample('Create an image of a futuristic city at night')">
+            <span class="example-label">Image</span>
+            Futuristic city
+          </div>
+          <div class="example-card" onclick="fillExample('Read this message: Welcome to our service')">
+            <span class="example-label">Audio</span>
+            Text to speech
+          </div>
+          <div class="example-card" onclick="fillExample('Translate to Marathi: How are you today?')">
+            <span class="example-label">Translation</span>
+            English to Marathi
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "http://localhost:8000";
+
+    async function processPrompt() {
+      const prompt = document.getElementById("promptInput").value.trim();
+      const loadingContainer = document.getElementById("loadingContainer");
+      const resultContainer = document.getElementById("resultContainer");
+      const processBtn = document.getElementById("processBtn");
+
+      if (!prompt) {
+        showError("Please enter a prompt");
+        return;
+      }
+
+      resultContainer.classList.remove("active");
+      loadingContainer.classList.add("active");
+      processBtn.disabled = true;
+
+      try {
+        const response = await fetch(`${API_URL}/process`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.detail || "Failed to process request");
+        }
+
+        const data = await response.json();
+        loadingContainer.classList.remove("active");
+        processBtn.disabled = false;
+        displayResult(data);
+      } catch (err) {
+        loadingContainer.classList.remove("active");
+        processBtn.disabled = false;
+        showError(err.message);
+      }
+    }
+
+    function displayResult(data) {
+      const resultContainer = document.getElementById("resultContainer");
+      const intentText = document.getElementById("intentText");
+      const resultContent = document.getElementById("resultContent");
+
+      intentText.textContent = data.intent;
+      resultContent.innerHTML = "";
+
+      if (data.type === "text") {
+        resultContent.innerHTML = `
+          <div class="result-text">${escapeHtml(data.result)}</div>
+        `;
+      } else if (data.type === "translation") {
+        resultContent.innerHTML = `
+          <div class="success-message">✓ Translation completed</div>
+          <div class="result-text"><strong>Original:</strong> ${escapeHtml(data.original)}</div>
+          <div class="result-text" style="margin-top: 12px;"><strong>Marathi:</strong> ${escapeHtml(data.result)}</div>
+        `;
+      } else if (data.type === "image") {
+        const filepath = data.file_path.replace(/\\/g, '/');
+        const imageUrl = `${API_URL}/${filepath}`;
+        console.log('Image URL:', imageUrl);
+        resultContent.innerHTML = `
+          <div class="success-message">✓ Image generated successfully</div>
+          <div class="result-image">
+            <img src="${imageUrl}" alt="Generated Image" loading="lazy" onerror="console.error('Image failed to load:', this.src)">
+          </div>
+        `;
+      } else if (data.type === "audio") {
+        const filepath = data.file_path.replace(/\\/g, '/');
+        const audioUrl = `${API_URL}/${filepath}`;
+        console.log('Audio URL:', audioUrl);
+        resultContent.innerHTML = `
+          <div class="success-message">✓ Audio generated successfully</div>
+          <div class="result-text" style="margin-bottom: 12px;">${escapeHtml(data.result)}</div>
+          <div class="result-audio">
+            <audio controls>
+              <source src="${audioUrl}" type="audio/mpeg">
+              Your browser does not support audio playback.
+            </audio>
+          </div>
+        `;
+      }
+
+      resultContainer.classList.add("active");
+    }
+
+    function showError(message) {
+      const resultContainer = document.getElementById("resultContainer");
+      const intentText = document.getElementById("intentText");
+      const resultContent = document.getElementById("resultContent");
+
+      intentText.textContent = "Error";
+      resultContent.innerHTML = `<div class="error-container">${escapeHtml(message)}</div>`;
+      resultContainer.classList.add("active");
+    }
+
+    function clearAll() {
+      document.getElementById("promptInput").value = "";
+      document.getElementById("resultContainer").classList.remove("active");
+      document.getElementById("loadingContainer").classList.remove("active");
+    }
+
+    function fillExample(text) {
+      document.getElementById("promptInput").value = text;
+      document.getElementById("promptInput").focus();
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    document.getElementById("promptInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        processPrompt();
+      }
+    });
+  </script>
+</body>
+</html>
