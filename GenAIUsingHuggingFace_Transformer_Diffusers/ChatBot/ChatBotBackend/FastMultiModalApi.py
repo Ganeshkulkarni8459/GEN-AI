@@ -1,8 +1,3 @@
-"""
-AI Multi-Modal API Backend
-FastAPI server with OpenAI integration for text, image, audio generation and translation
-"""
-
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -13,342 +8,174 @@ import uuid
 import requests
 from pathlib import Path
 import base64
-from typing import Dict, Any
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="AI Multi-Modal API",
-    description="Generate text, images, audio, and translations using OpenAI",
-    version="1.0.0"
-)
+app = FastAPI()
 
-# Configure CORS
+# CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Initialize OpenAI client
-openai_api_key = os.getenv("OPENAI_API_KEY")
-if not openai_api_key:
-    print("WARNING: OPENAI_API_KEY environment variable not set!")
-    
-client = OpenAI(api_key=openai_api_key)
+# OpenAI client
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Create necessary directories
-IMAGES_DIR = Path("static/images")
-AUDIO_DIR = Path("static/audio")
-IMAGES_DIR.mkdir(parents=True, exist_ok=True)
-AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+# Create directories
+Path("static/images").mkdir(parents=True, exist_ok=True)
+Path("static/audio").mkdir(parents=True, exist_ok=True)
 
-# Pydantic models
 class PromptRequest(BaseModel):
     prompt: str
 
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "prompt": "Create an image of a sunset over mountains"
-            }
-        }
-
-# API Routes
-@app.get("/")
-async def root() -> Dict[str, str]:
-    """Root endpoint - API health check"""
-    return {
-        "message": "AI Multi-Modal Service API",
-        "status": "running",
-        "version": "1.0.0"
-    }
-
-@app.get("/health")
-async def health() -> Dict[str, Any]:
-    """Health check endpoint with system status"""
-    return {
-        "status": "healthy",
-        "openai_key_set": bool(openai_api_key),
-        "static_dirs_exist": {
-            "images": IMAGES_DIR.exists(),
-            "audio": AUDIO_DIR.exists()
-        },
-        "images_count": len(list(IMAGES_DIR.glob("*.png"))) if IMAGES_DIR.exists() else 0,
-        "audio_count": len(list(AUDIO_DIR.glob("*.mp3"))) if AUDIO_DIR.exists() else 0
-    }
-
 @app.post("/process")
-async def process_prompt(request: PromptRequest) -> Dict[str, Any]:
-    """
-    Main endpoint to process user prompts
-    Detects intent and routes to appropriate handler
-    """
-    user_input = request.prompt.strip()
-    
-    if not user_input:
-        raise HTTPException(status_code=400, detail="Prompt cannot be empty")
-    
-    if not openai_api_key:
-        raise HTTPException(
-            status_code=500, 
-            detail="OpenAI API key not configured. Please set OPENAI_API_KEY environment variable."
-        )
+async def process_prompt(request: PromptRequest):
+    prompt = request.prompt.strip()
+    if not prompt:
+        raise HTTPException(400, "Prompt cannot be empty")
     
     try:
-        # Detect intent using GPT
-        intent_response = client.chat.completions.create(
+        # Detect intent
+        intent = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {
-                    "role": "system",
-                    "content": """You are an intent classifier. Analyze the user's request and respond with EXACTLY ONE of these words:
-- IMAGE: if they want to generate, create, draw, or visualize an image
-- AUDIO: if they want text-to-speech, audio generation, or to hear something read aloud
-- TRANSLATION: if they want to translate text to Marathi or convert English to Marathi
-- TEXT: for general questions, conversations, explanations, or text generation
-
-Respond with only the category word, nothing else."""
-                },
-                {"role": "user", "content": user_input}
+                {"role": "system", "content": "Classify as: IMAGE, AUDIO, TRANSLATION, or TEXT"},
+                {"role": "user", "content": prompt}
             ],
             temperature=0.3,
             max_tokens=10
         )
         
-        action_type = intent_response.choices[0].message.content.strip().upper()
-        print(f"[INFO] Detected intent: {action_type} for prompt: '{user_input[:50]}...'")
+        intent_type = intent.choices[0].message.content.strip().upper()
         
-        # Route to appropriate handler
-        if action_type == "IMAGE":
-            return await handle_image(user_input)
-        elif action_type == "AUDIO":
-            return await handle_audio(user_input)
-        elif action_type == "TRANSLATION":
-            return await handle_translation(user_input)
-        elif action_type == "TEXT":
-            return await handle_text(user_input)
+        # Route to handler
+        if intent_type == "IMAGE":
+            return handle_image(prompt)
+        elif intent_type == "AUDIO":
+            return handle_audio(prompt)
+        elif intent_type == "TRANSLATION":
+            return handle_translation(prompt)
         else:
-            # Default to text if intent is unclear
-            print(f"[WARNING] Unknown intent: {action_type}, defaulting to TEXT")
-            return await handle_text(user_input)
+            return handle_text(prompt)
             
     except Exception as e:
-        print(f"[ERROR] Error in process_prompt: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
+        raise HTTPException(500, str(e))
 
-# Handler Functions
-async def handle_text(prompt: str) -> Dict[str, Any]:
-    """Generate text response using GPT"""
-    try:
-        print(f"[INFO] Generating text response...")
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": "You are a helpful AI assistant. Provide clear, concise, and informative responses."
-                },
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=500
-        )
-        
-        result = response.choices[0].message.content.strip()
-        print(f"[SUCCESS] Text generated: {len(result)} characters")
-        
-        return {
-            "intent": "Text Generation",
-            "type": "text",
-            "result": result
-        }
-    except Exception as e:
-        print(f"[ERROR] Error in handle_text: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Text generation failed: {str(e)}")
+def handle_text(prompt):
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.7,
+        max_tokens=500
+    )
+    
+    return {
+        "intent": "Text Generation",
+        "type": "text",
+        "result": response.choices[0].message.content.strip()
+    }
 
-async def handle_image(prompt: str) -> Dict[str, Any]:
-    """Generate image using DALL-E and return as base64"""
-    try:
-        print(f"[INFO] Generating image with DALL-E...")
-        response = client.images.generate(
-            model="dall-e-3",
-            prompt=prompt,
-            size="1024x1024",
-            quality="standard",
-            n=1
-        )
-        
-        image_url = response.data[0].url
-        print(f"[INFO] Image generated, downloading from: {image_url}")
-        
-        # Download image
-        image_response = requests.get(image_url, timeout=30)
-        image_response.raise_for_status()
-        image_bytes = image_response.content
-        
-        # Save to file (for backup)
-        filename = f"generated_{uuid.uuid4().hex}.png"
-        filepath = IMAGES_DIR / filename
-        with open(filepath, "wb") as f:
-            f.write(image_bytes)
-        print(f"[SUCCESS] Image saved to: {filepath}")
-        
-        # Convert to base64 for frontend display
-        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-        print(f"[INFO] Image converted to base64 (size: {len(image_base64)} chars)")
-        
-        return {
-            "intent": "Image Generation",
-            "type": "image",
-            "result": "Image generated successfully",
-            "file_path": str(filepath),
-            "image_data": f"data:image/png;base64,{image_base64}"
-        }
-        
-    except requests.exceptions.RequestException as e:
-        print(f"[ERROR] Network error in handle_image: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Failed to download image: {str(e)}")
-    except Exception as e:
-        print(f"[ERROR] Error in handle_image: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Image generation failed: {str(e)}")
+def handle_image(prompt):
+    # Generate image
+    response = client.images.generate(
+        model="dall-e-3",
+        prompt=prompt,
+        size="1024x1024"
+    )
+    
+    # Download image
+    image_url = response.data[0].url
+    image_bytes = requests.get(image_url).content
+    
+    # Save file
+    filename = f"generated_{uuid.uuid4().hex}.png"
+    filepath = f"static/images/{filename}"
+    with open(filepath, "wb") as f:
+        f.write(image_bytes)
+    
+    # Convert to base64
+    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+    
+    return {
+        "intent": "Image Generation",
+        "type": "image",
+        "result": "Image generated successfully",
+        "file_path": filepath,
+        "image_data": f"data:image/png;base64,{image_base64}"
+    }
 
-async def handle_translation(prompt: str) -> Dict[str, Any]:
-    """Translate English to Marathi using GPT"""
-    try:
-        print(f"[INFO] Translating to Marathi...")
-        # Extract text to translate
-        translation_response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {
-                    "role": "system",
-                    "content": """You are a professional English to Marathi translator. 
-Translate the given English text to Marathi accurately. 
-If the input contains phrases like "translate to Marathi:" or "convert to Marathi:", extract only the actual text to translate.
-Provide only the Marathi translation, nothing else."""
-                },
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-            max_tokens=500
-        )
-        
-        marathi_text = translation_response.choices[0].message.content.strip()
-        
-        # Extract original text
-        original_text = prompt
-        if "translate" in prompt.lower():
-            parts = prompt.split(":", 1)
-            if len(parts) > 1:
-                original_text = parts[1].strip()
-        
-        print(f"[SUCCESS] Translation completed")
-        
-        return {
-            "intent": "Translation (English → Marathi)",
-            "type": "translation",
-            "result": marathi_text,
-            "original": original_text
-        }
-    except Exception as e:
-        print(f"[ERROR] Error in handle_translation: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Translation failed: {str(e)}")
+def handle_translation(prompt):
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "Translate English to Marathi. Return only the translation."},
+            {"role": "user", "content": prompt}
+        ],
+        temperature=0.3,
+        max_tokens=500
+    )
+    
+    marathi_text = response.choices[0].message.content.strip()
+    
+    # Extract original text
+    original = prompt
+    if ":" in prompt and "translate" in prompt.lower():
+        original = prompt.split(":", 1)[1].strip()
+    
+    return {
+        "intent": "Translation (English → Marathi)",
+        "type": "translation",
+        "result": marathi_text,
+        "original": original
+    }
 
-async def handle_audio(prompt: str) -> Dict[str, Any]:
-    """Generate audio using OpenAI TTS and return as base64"""
-    try:
-        # Extract text to speak
-        text_to_speak = prompt
-        if "read" in prompt.lower() or "speak" in prompt.lower():
-            parts = prompt.split(":", 1)
-            if len(parts) > 1:
-                text_to_speak = parts[1].strip()
-            else:
-                # Try to extract after common phrases
-                for phrase in ["read this", "read aloud", "say this", "speak this"]:
-                    if phrase in prompt.lower():
-                        text_to_speak = prompt.lower().split(phrase, 1)[1].strip()
-                        break
-        
-        print(f"[INFO] Generating audio for: '{text_to_speak[:50]}...'")
-        filename = f"audio_{uuid.uuid4().hex}.mp3"
-        filepath = AUDIO_DIR / filename
-        
-        # Generate speech
-        response = client.audio.speech.create(
-            model="tts-1",
-            voice="alloy",  # Options: alloy, echo, fable, onyx, nova, shimmer
-            input=text_to_speak
-        )
-        
-        # Save audio file
-        response.stream_to_file(str(filepath))
-        print(f"[SUCCESS] Audio saved to: {filepath}")
-        
-        # Read file and convert to base64 for frontend display
-        with open(filepath, "rb") as audio_file:
-            audio_bytes = audio_file.read()
-            audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
-        
-        print(f"[INFO] Audio converted to base64 (size: {len(audio_base64)} chars)")
-        
-        return {
-            "intent": "Text-to-Speech",
-            "type": "audio",
-            "result": f"Audio generated for: {text_to_speak[:100]}{'...' if len(text_to_speak) > 100 else ''}",
-            "file_path": str(filepath),
-            "audio_data": f"data:audio/mpeg;base64,{audio_base64}"
-        }
-        
-    except Exception as e:
-        print(f"[ERROR] Error in handle_audio: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Audio generation failed: {str(e)}")
+def handle_audio(prompt):
+    # Extract text to speak
+    text = prompt
+    if ":" in prompt:
+        text = prompt.split(":", 1)[1].strip()
+    
+    # Generate audio
+    filename = f"audio_{uuid.uuid4().hex}.mp3"
+    filepath = f"static/audio/{filename}"
+    
+    response = client.audio.speech.create(
+        model="tts-1",
+        voice="alloy",
+        input=text
+    )
+    
+    response.stream_to_file(filepath)
+    
+    # Convert to base64
+    with open(filepath, "rb") as f:
+        audio_base64 = base64.b64encode(f.read()).decode('utf-8')
+    
+    return {
+        "intent": "Text-to-Speech",
+        "type": "audio",
+        "result": f"Audio generated for: {text[:100]}",
+        "file_path": filepath,
+        "audio_data": f"data:audio/mpeg;base64,{audio_base64}"
+    }
 
-# Mount static files for backup access
+# Serve static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# Startup and shutdown events
-@app.on_event("startup")
-async def startup_event():
-    """Run on application startup"""
-    print("=" * 60)
-    print("AI Multi-Modal Service Starting...")
-    print("=" * 60)
-    print(f"OpenAI API Key: {'✓ Set' if openai_api_key else '✗ Not Set'}")
-    print(f"Images Directory: {IMAGES_DIR.absolute()}")
-    print(f"Audio Directory: {AUDIO_DIR.absolute()}")
-    print("=" * 60)
+@app.get("/")
+def root():
+    return {"message": "AI Multi-Modal API", "status": "running"}
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Run on application shutdown"""
-    print("\n" + "=" * 60)
-    print("AI Multi-Modal Service Shutting Down...")
-    print("=" * 60)
+@app.get("/health")
+def health():
+    return {"status": "healthy", "api_key_set": bool(os.getenv("OPENAI_API_KEY"))}
 
-# Main entry point
 if __name__ == "__main__":
     import uvicorn
-    
-    # Configuration
-    HOST = "0.0.0.0"
-    PORT = 8000
-    
-    print("\n" + "=" * 60)
-    print(f"Starting FastAPI server on http://{HOST}:{PORT}")
-    print("=" * 60)
-    print(f"OpenAI API Key: {'✓ Configured' if openai_api_key else '✗ NOT CONFIGURED'}")
-    print("=" * 60)
-    
-    if not openai_api_key:
-        print("\n⚠️  WARNING: OpenAI API key not found!")
-        print("Set it with: export OPENAI_API_KEY='your-key-here'\n")
-    
-    uvicorn.run(
-        app,
-        host=HOST,
-        port=PORT,
-        log_level="info"
-    )
+    print("Starting server on http://localhost:8000")
+    uvicorn.run(app, host="0.0.0.0", port=8000)
